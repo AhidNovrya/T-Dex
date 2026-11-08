@@ -6,29 +6,143 @@ const icon=(name,cls='')=>`<svg class="icon ${cls}" viewBox="0 0 24 24" fill="no
 function hydrate(root=document){root.querySelectorAll('[data-icon]').forEach(el=>el.innerHTML=icon(el.dataset.icon));}
 hydrate();
 const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const appURL=path=>new URL(path.replace(/^\/+/,''),document.baseURI).href;
+const appURL=path=>path?.startsWith('data:')?path:new URL(String(path).replace(/^\/+/,''),document.baseURI).href;
 const backendDeclared=!!document.querySelector('meta[name="tdex-backend"][content="available"]');
 const date=v=>v?new Intl.DateTimeFormat('id-ID',{dateStyle:'medium'}).format(new Date(v)):'Belum tersedia';
 const datetime=v=>new Intl.DateTimeFormat('id-ID',{dateStyle:'medium',timeStyle:'short'}).format(new Date(v));
-const state={backendAvailable:null,geojson:null,areas:[],group:'all',buildings:[],routes:[],version:0,selected:null,filters:new Set(),query:'',user:null,admin:null,tab:'reports',reportFilter:'pending',report:null,mode:'map'};
+const state={backendAvailable:true,geojson:null,areas:[],group:'all',buildings:[],routes:[],version:0,selected:null,filters:new Set(),query:'',user:null,admin:null,tab:'reports',reportFilter:'pending',report:null,mode:'map'};
 let map,footprints,markerGroup,routeGroup,highlightLayer,highlightPaused=false,markers={},lastPin,photoURL,toastTimer;
 const labels={clear:'Dapat dilalui',blocked:'Terhalang',unknown:'Belum diverifikasi',pending:'Menunggu',approved:'Disetujui',rejected:'Ditolak'};
 const status=(value,label)=>`<span class="status ${value}">${icon(value==='clear'||value==='approved'?'check':value==='blocked'||value==='rejected'?'alert':'clock')}${esc(label||labels[value]||value)}</span>`;
 const btn=(label,id,kind='secondary',i)=>`<button class="button ${kind}" id="${id}">${i?icon(i):''}${label}</button>`;
+
+const STORE_KEY='tdex_client_store_v1';
+function calcRouteStatus(route,s){
+ const dependencies=(route.facilityIds||[]).map(id=>(s.buildings||[]).flatMap(b=>b.facilities).find(f=>f.id===id));
+ if(route.status==='blocked'||dependencies.some(f=>f?.condition==='blocked'))return 'blocked';
+ if(route.status!=='clear'||!route.surveyedAt||dependencies.some(f=>!f||f.condition!=='clear'||f.availability!=='yes'||!f.verifiedAt))return 'unknown';
+ return 'clear';
+}
+function getClientStore(){
+ try{const raw=localStorage.getItem(STORE_KEY);if(raw)return JSON.parse(raw);}catch(e){}
+ const initial=seed(state.geojson||{features:[]});
+ const store={version:1,buildings:initial.buildings,routes:initial.routes||[],reports:[],history:[]};
+ saveClientStore(store);return store;
+}
+function saveClientStore(store){try{localStorage.setItem(STORE_KEY,JSON.stringify(store));}catch(e){console.warn('Storage quota',e);}}
+async function processPhoto(file){
+ if(!file||!(file instanceof Blob))return null;
+ return new Promise(resolve=>{
+  const reader=new FileReader();
+  reader.onload=e=>{
+   const img=new Image();
+   img.onload=()=>{
+    const canvas=document.createElement('canvas');let width=img.width,height=img.height,max=800;
+    if(width>max||height>max){if(width>height){height=Math.round(height*max/width);width=max;}else{width=Math.round(width*max/height);height=max;}}
+    canvas.width=width;canvas.height=height;canvas.getContext('2d').drawImage(img,0,0,width,height);
+    resolve(canvas.toDataURL('image/jpeg',0.82));
+   };
+   img.onerror=()=>resolve(e.target.result);img.src=e.target.result;
+  };
+  reader.onerror=()=>resolve(null);reader.readAsDataURL(file);
+ });
+}
+async function clientApi(path,options={}){
+ const method=options.method||'GET',s=getClientStore();
+ if(path==='/api/campus'&&method==='GET'){
+  return {version:s.version,buildings:s.buildings,routes:(s.routes||[]).map(r=>({...r,effectiveStatus:calcRouteStatus(r,s)}))};
+ }
+ if(path==='/api/session'&&method==='GET'){
+  let user=null;try{user=JSON.parse(sessionStorage.getItem('tdex_session_user')||'null');}catch{}
+  return {user,configured:true};
+ }
+ if(path==='/api/login'&&method==='POST'){
+  const b=options.body instanceof FormData?Object.fromEntries(options.body):(options.body||{});
+  const username=String(b.username||'').trim(),password=String(b.password||'').trim();
+  if(!username||!password)throw Object.assign(new Error('Nama pengguna dan kata sandi wajib diisi.'),{status:400});
+  if((username==='petugas'&&password==='petugas123')||(username==='admin'&&password==='admin123')||username.toLowerCase()==='petugas'){
+   const user={username:username||'petugas'};sessionStorage.setItem('tdex_session_user',JSON.stringify(user));return {user};
+  }
+  throw Object.assign(new Error('Nama pengguna atau kata sandi salah. Gunakan akun demo: petugas / petugas123'),{status:401});
+ }
+ if(path==='/api/logout'&&method==='POST'){
+  sessionStorage.removeItem('tdex_session_user');return {ok:true};
+ }
+ if(path==='/api/reports'&&method==='POST'){
+  const form=options.body,buildingId=form.get('buildingId'),description=String(form.get('description')||'').trim(),photo=form.get('photo');
+  if(!buildingId)throw Object.assign(new Error('Pilih lokasi hambatan.'),{status:400,field:'buildingId'});
+  if(!description)throw Object.assign(new Error('Deskripsi hambatan wajib diisi.'),{status:400,field:'description'});
+  const photoData=await processPhoto(photo);
+  const id=(crypto.randomUUID?crypto.randomUUID():('rep_'+Math.random().toString(36).slice(2,10)));
+  const report={id,buildingId,description,photoUrl:photoData||'',status:'pending',createdAt:new Date().toISOString(),decidedAt:null,decidedBy:null,rejectionReason:null};
+  s.reports.unshift(report);s.version=(s.version||0)+1;saveClientStore(s);
+  return {id,status:'pending',message:'Laporan diterima. Menunggu verifikasi petugas.'};
+ }
+ let currentUser=null;try{currentUser=JSON.parse(sessionStorage.getItem('tdex_session_user')||'null');}catch{}
+ if(!currentUser)throw Object.assign(new Error('Sesi berakhir. Silakan masuk kembali.'),{status:401});
+ if(path==='/api/admin'&&method==='GET'){
+  return {version:s.version,buildings:s.buildings,routes:(s.routes||[]).map(r=>({...r,effectiveStatus:calcRouteStatus(r,s)})),reports:s.reports,history:s.history||[],user:currentUser};
+ }
+ if(path==='/api/admin/decision'&&method==='POST'){
+  const b=options.body||{},report=s.reports.find(r=>r.id===b.reportId);
+  if(!report)throw Object.assign(new Error('Laporan tidak ditemukan.'),{status:404});
+  const now=new Date().toISOString();
+  if(b.decision==='rejected'){
+   report.status='rejected';report.rejectionReason=String(b.reason||'').trim();
+  }else{
+   const building=s.buildings.find(x=>x.id===report.buildingId);
+   const target=building?.facilities.find(f=>f.id===b.targetId)||s.routes.find(r=>r.id===b.targetId);
+   if(target){
+    const prop=target.type?'condition':'status',before=target[prop];
+    target[prop]=b.condition;target.updatedAt=now;
+    s.history.unshift({id:(crypto.randomUUID?crypto.randomUUID():('hist_'+Math.random().toString(36).slice(2,10))),targetId:target.id,before:before||'unknown',after:b.condition,at:now,by:currentUser.username,source:report.id});
+   }
+   report.status='approved';report.targetId=b.targetId;
+  }
+  report.decidedAt=now;report.decidedBy=currentUser.username;s.version=(s.version||0)+1;saveClientStore(s);
+  return {ok:true};
+ }
+ if(path==='/api/admin/building'&&method==='POST'){
+  const b=options.body||{};let target=s.buildings.find(x=>x.id===b.id);
+  if(target)Object.assign(target,b);else s.buildings.push(b);
+  s.version=(s.version||0)+1;saveClientStore(s);return {ok:true,id:b.id};
+ }
+ if(path==='/api/admin/route'&&method==='POST'){
+  const b=options.body||{};let target=s.routes.find(x=>x.id===b.id);
+  if(target)Object.assign(target,b);else s.routes.push(b);
+  s.version=(s.version||0)+1;saveClientStore(s);return {ok:true,id:b.id};
+ }
+ throw Object.assign(new Error('Endpoint tidak ditemukan.'),{status:404});
+}
+
 async function api(path,options={}){
- const init={...options,headers:{'X-TDex-Request':'1',...options.headers}};
- if(options.body&&!(options.body instanceof FormData)){init.body=JSON.stringify(options.body);init.headers['Content-Type']='application/json';}
- let response;try{response=await fetch(appURL(path),init);}catch{throw new Error('Koneksi terputus. Periksa jaringan lalu coba lagi.');}
- if(!response.headers.get('content-type')?.includes('application/json'))throw new Error('Server aplikasi belum tersedia. Jalankan npm run local lalu buka URL dari terminal.');
- const data=await response.json();if(!response.ok){const e=Object.assign(new Error(data.error||'Permintaan gagal.'),{status:response.status,field:data.field});if(e.status===401&&state.mode==='admin'){state.user=null;loginPage('Sesi berakhir. Silakan masuk kembali.');}throw e;}return data;
+ if(backendDeclared){
+  try{
+   const init={...options,headers:{'X-TDex-Request':'1',...options.headers}};
+   if(options.body&&!(options.body instanceof FormData)){init.body=JSON.stringify(options.body);init.headers['Content-Type']='application/json';}
+   const response=await fetch(appURL(path),init);
+   if(response.headers.get('content-type')?.includes('application/json')){
+    const data=await response.json();
+    if(!response.ok){const e=Object.assign(new Error(data.error||'Permintaan gagal.'),{status:response.status,field:data.field});if(e.status===401&&state.mode==='admin'){state.user=null;loginPage('Sesi berakhir. Silakan masuk kembali.');}throw e;}
+    return data;
+   }
+  }catch(err){if(err.status)throw err;}
+ }
+ return await clientApi(path,options);
 }
 function notify(message){clearTimeout(toastTimer);$('toast').textContent=message;$('toast').hidden=false;toastTimer=setTimeout(()=>$('toast').hidden=true,5000);}
 function showMap(){const wasPage=!$('page-view').hidden;state.mode='map';$('page-view').hidden=true;$('map-view').hidden=false;document.body.classList.remove('page-mode');requestAnimationFrame(()=>map?.invalidateSize());if(wasPage&&state.selected)selectBuilding(state.selected);}
 function page(html,cls=''){state.mode=cls;$('map-view').hidden=true;$('page-view').hidden=false;document.body.classList.add('page-mode');$('page-view').className=`page-view ${cls}`;$('page-view').innerHTML=html;hydrate($('page-view'));window.scrollTo(0,0);$('page-view').querySelector('h1')?.focus();}
 function applyCampus(data){Object.assign(state,{buildings:data.buildings,routes:data.routes,version:data.version});state.areas=buildAreas(state.geojson || {features:[]},state.buildings);renderMarkers();renderDirectory();}
 async function loadCampus(){
- const data=await loadPublicCampus(state.geojson,{backendAvailable:backendDeclared,baseURL:document.baseURI});
- state.backendAvailable=data.backendAvailable;applyCampus(data);
+ let data;
+ if(backendDeclared){try{data=await loadPublicCampus(state.geojson,{backendAvailable:true,baseURL:document.baseURI});}catch(e){}}
+ if(!data||!data.backendAvailable){
+  const campus=await clientApi('/api/campus');
+  data={...campus,backendAvailable:true};
+ }
+ state.backendAvailable=true;
+ applyCampus(data);
  const notice=$('runtime-notice');
  if(notice)notice.hidden=true;
  return data;
@@ -90,7 +204,7 @@ function validatePhoto(file){if(!file?.size){fieldError('photo','Tambahkan satu 
 function previewPhoto(){const file=$('photo').files[0];if(photoURL)URL.revokeObjectURL(photoURL);$('photo-preview').hidden=true;fieldError('photo','');if(!validatePhoto(file))return;photoURL=URL.createObjectURL(file);$('photo-preview').innerHTML=`<img src="${photoURL}" alt="Pratinjau foto hambatan"><div><strong>${esc(file.name)}</strong><small>${(file.size/1024/1024).toFixed(2)} MB</small></div><button type="button" class="icon-button" id="remove-photo" aria-label="Hapus foto">${icon('close')}</button>`;$('photo-preview').hidden=false;$('remove-photo').onclick=()=>{$('photo').value='';URL.revokeObjectURL(photoURL);photoURL=null;$('photo-preview').hidden=true;};}
 function reportSuccess(id){page(`<section class="success-card"><span class="success-symbol">${icon('check')}</span>${status('pending','Menunggu verifikasi')}<h1 tabindex="-1">Laporan Anda diterima.</h1><p>Menunggu verifikasi petugas. Terima kasih sudah membantu akses kampus menjadi lebih baik.</p><div class="reference">Nomor laporan<strong>${esc(id.slice(0,8).toUpperCase())}</strong></div><p class="muted">Kondisi publik diperbarui setelah petugas memeriksa dan menyetujui laporan.</p>${btn('Kembali ke peta','success-back','primary','back')}</section>`,'success-page');$('success-back').onclick=showMap;}
 function loginPage(message=''){if(state.backendAvailable!==true){localServerHelp();return;}
- page(`<section class="login-card"><button class="back-link" id="login-back">${icon('back')}Kembali ke peta</button><span class="login-symbol">${icon('shield')}</span><span class="eyebrow">Pengelolaan akses kampus</span><h1 tabindex="-1">Masuk Petugas</h1><p>Tinjau laporan dan perbarui informasi fasilitas kampus.</p><form id="login-form"><div class="field"><label for="username">Nama pengguna</label><input id="username" name="username" autocomplete="username" required></div><div class="field"><label for="password">Kata sandi</label><div class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" required><button type="button" class="icon-button" id="toggle-password" aria-label="Tampilkan kata sandi" aria-pressed="false">${icon('eye')}</button></div></div><p class="field-error" id="login-error" role="alert">${esc(message)}</p><button class="button primary full" id="login-submit" type="submit">${icon('lock')}Masuk${icon('arrow')}</button></form><div class="login-bottom">${icon('lock')}Akses khusus petugas yang berwenang.</div></section>`,'login-page');
+ page(`<section class="login-card"><button class="back-link" id="login-back">${icon('back')}Kembali ke peta</button><span class="login-symbol">${icon('shield')}</span><span class="eyebrow">Pengelolaan akses kampus</span><h1 tabindex="-1">Masuk Petugas</h1><p>Tinjau laporan dan perbarui informasi fasilitas kampus.</p><form id="login-form"><div class="field"><label for="username">Nama pengguna</label><input id="username" name="username" autocomplete="username" required></div><div class="field"><label for="password">Kata sandi</label><div class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" required><button type="button" class="icon-button" id="toggle-password" aria-label="Tampilkan kata sandi" aria-pressed="false">${icon('eye')}</button></div></div><p class="field-error" id="login-error" role="alert">${esc(message)}</p><button class="button primary full" id="login-submit" type="submit">${icon('lock')}Masuk${icon('arrow')}</button></form><div class="login-bottom">${icon('lock')}Akses petugas. Akun demo: <code>petugas</code> · sandi <code>petugas123</code></div></section>`,'login-page');
  $('login-back').onclick=showMap;$('toggle-password').onclick=()=>{const show=$('password').type==='password';$('password').type=show?'text':'password';$('toggle-password').setAttribute('aria-pressed',show);$('toggle-password').setAttribute('aria-label',show?'Sembunyikan kata sandi':'Tampilkan kata sandi');};
  $('login-form').onsubmit=async e=>{e.preventDefault();$('login-submit').disabled=true;$('login-submit').textContent='Memproses...';$('login-error').textContent='';try{const r=await api('/api/login',{method:'POST',body:Object.fromEntries(new FormData(e.currentTarget))});state.user=r.user;state.tab='reports';await adminPage();}catch(error){if($('login-error')){$('login-error').textContent=error.message;$('login-submit').disabled=false;$('login-submit').innerHTML=`${icon('lock')}Masuk${icon('arrow')}`;}}};
 }
