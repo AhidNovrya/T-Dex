@@ -48,10 +48,12 @@ export function buildAreas(geojson, buildings = []) {
     });
     return [{...pilot, id:pilot?.id || key, featureKey:key, group, geometry:feature.geometry,
       name:pilot?.name || p.name || (group==='parkir'?'Area parkir':'Gedung tanpa nama'),
-      fullName:pilot?.fullName || p.name || key, category:pilot?.category || AREA_GROUPS.find(([id])=>id===group)?.[1],
+      fullName: [pilot?.fullName || p.name || key, p.nama_lain].filter(Boolean).join(' · '),
+      category:pilot?.category || AREA_GROUPS.find(([id])=>id===group)?.[1],
       buildingCode:pilot?.buildingCode || p.building_code || '',
-      aliases:`${p.name || ''} ${p.building_code || ''} ${group==='ibadah'||/masjid syamsul ulum/i.test(p.name || '')?'MSU':''}`.trim(),
-      position:pilot?.position || position, photo:pilot?.photo || '', history:pilot?.history || '',
+      aliases: `${p.name || ''} ${p.nama_lain || ''} ${p.building_code || ''} ${group === 'ibadah' ? 'MSU' : ''}`.trim(),
+      position:pilot?.position || position, photo:pilot?.photo || '',
+      history: pilot?.history || p.history || '',
       locationNote:pilot?.locationNote || '', verifiedAt:pilot?.verifiedAt || null, facilities, pilot:!!pilot,
     }];
   });

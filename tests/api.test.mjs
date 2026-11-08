@@ -15,7 +15,7 @@ async function call(path,body,{auth=false,origin='https://tdex.test',ip='test',h
 before(async()=>{db.exec(await readFile('drizzle/0000_pilot.sql','utf8'));api=createAPI(JSON.parse(await readFile('peta_telkom.geojson','utf8')));env={DB,BUCKET,ADMIN_USERNAME:'petugas',ADMIN_PASSWORD_HASH:await hashPassword('test-password-unique')};});
 after(()=>db.close());
 test('pilot inventory uses real geometry and makes no unsupported verification claims',async()=>{
- const {data}=await call('/api/campus');assert.equal(data.buildings.length,4);assert.equal(data.routes.length,0);assert.equal(data.buildings[0].verifiedAt,null);assert.equal(data.buildings[0].facilities[0].availability,'reported');assert.match(data.buildings[2].locationNote,/belum dikonfirmasi/);assert.ok(data.buildings.every(b=>b.position.every(Number.isFinite)));
+ const {data}=await call('/api/campus');assert.equal(data.buildings.length,4);assert.equal(data.routes.length,0);assert.equal(data.buildings[0].verifiedAt,null);assert.equal(data.buildings[0].facilities[0].availability,'reported');assert.equal(data.buildings[2].name,'Asrama Putra Gedung 1');assert.ok(data.buildings.every(b=>b.position.every(Number.isFinite)));
 });
 test('staff endpoints and photo evidence require server sessions',async()=>{assert.equal((await call('/api/admin')).response.status,401);assert.equal((await call('/api/photos/anything')).response.status,401);});
 test('login rejects invalid credentials; issues secure HttpOnly cookie for valid credentials',async()=>{

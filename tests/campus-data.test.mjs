@@ -21,14 +21,16 @@ test('Asrama group includes every dormitory and excludes shops and canteens with
  assert.ok(dorms.some(a=>a.name==='Asrama Putri Gedung F'));
  assert.ok(dorms.every(a=>!(/kantin|laundry|kompos/i.test(a.name))));
 });
-test('MSU abbreviation finds the mosque and its parking, classified separately',()=>{
+test('MSU abbreviation finds the mosque, and parking areas use uniform naming',()=>{
  const results=filterAreas(areas,{query:'MSU'});
- assert.equal(results.length,2);
- assert.equal(results.find(a=>a.name==='Masjid Syamsul Ulum').group,'ibadah');
- assert.equal(results.find(a=>a.name==='Parkiran Masjid Syamsul Ulum').group,'parkir');
+ assert.equal(results.length,1);
+ assert.equal(results[0].name,'Masjid Syamsul Ulum');
+ assert.equal(results[0].group,'ibadah');
+ const parkings=filterAreas(areas,{group:'parkir'});
+ assert.ok(parkings.every(a=>a.name==='Area parkir'));
 });
 test('facility filters include the reported inventory without inventing verification dates',()=>{
- for(const [type,expected]of [['ramp',4],['lift',2],['toilet',1],['pemandu',1]]){
+ for(const [type,expected]of [['ramp',22],['lift',2],['toilet',1],['pemandu',1]]){
   const matches=filterAreas(areas,{filters:[type]});assert.equal(matches.length,expected);
   assert.ok(matches.every(a=>a.facilities.find(f=>f.type===type).verifiedAt===null));
  }
