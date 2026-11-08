@@ -49,7 +49,8 @@ export function buildAreas(geojson, buildings = []) {
     return [{...pilot, id:pilot?.id || key, featureKey:key, group, geometry:feature.geometry,
       name:pilot?.name || p.name || (group==='parkir'?'Area parkir':'Gedung tanpa nama'),
       fullName:pilot?.fullName || p.name || key, category:pilot?.category || AREA_GROUPS.find(([id])=>id===group)?.[1],
-      aliases:`${p.name || ''} ${group==='ibadah'||/masjid syamsul ulum/i.test(p.name || '')?'MSU':''}`,
+      buildingCode:pilot?.buildingCode || p.building_code || '',
+      aliases:`${p.name || ''} ${p.building_code || ''} ${group==='ibadah'||/masjid syamsul ulum/i.test(p.name || '')?'MSU':''}`.trim(),
       position:pilot?.position || position, photo:pilot?.photo || '', history:pilot?.history || '',
       locationNote:pilot?.locationNote || '', verifiedAt:pilot?.verifiedAt || null, facilities, pilot:!!pilot,
     }];
@@ -62,5 +63,20 @@ export function matchesFacilities(area, filters) {
 }
 export function filterAreas(areas, {group='all', query='', filters=[]}={}) {
   const q=query.trim().toLocaleLowerCase('id');
-  return areas.filter(area=>(group==='all'||area.group===group)&&`${area.name} ${area.fullName} ${area.aliases || ''}`.toLocaleLowerCase('id').includes(q)&&matchesFacilities(area,filters));
+  // If query looks like a room/class code (e.g. "KU1.02.13", "TULT.01.A"), extract building prefix before the first dot
+  const roomCode=/^([A-Za-z]+\d*)[.]/.exec(query.trim());
+  const buildingPrefix=roomCode ? roomCode[1].toLocaleLowerCase('id') : null;
+  return areas.filter(area=>{
+    if(group!=='all'&&area.group!==group)return false;
+    if(!matchesFacilities(area,filters))return false;
+    if(!q)return true;
+    if(buildingPrefix){
+      // Match only if the area's buildingCode (or a token in aliases) is exactly the prefix
+      const code=(area.buildingCode||'').toLocaleLowerCase('id');
+      if(code)return code===buildingPrefix;
+      // Fallback: exact token match in aliases
+      return (area.aliases||'').toLocaleLowerCase('id').split(/\s+/).some(tok=>tok===buildingPrefix);
+    }
+    return `${area.name} ${area.fullName} ${area.aliases || ''}`.toLocaleLowerCase('id').includes(q);
+  });
 }
