@@ -1,17 +1,22 @@
 // Public map areas come from GeoJSON; staff-verified records keep precedence.
 export const AREA_GROUPS = [
   ['all', 'Semua area'], ['gedung', 'Gedung'], ['gate', 'Gate'],
-  ['asrama', 'Asrama'], ['ibadah', 'Tempat ibadah / MSU'], ['parkir', 'Parkir'],
+  ['asrama', 'Asrama'], ['ibadah', 'Tempat Ibadah'], ['kantin', 'Kantin/Mart'], ['parkir', 'Parkir'],
 ];
 const FACILITIES = {ramp:'Ramp', lift:'Lift', toilet:'Toilet aksesibel', pemandu:'Jalur pemandu'};
 export function featureKey(feature, index = 0) {
   return feature.id || feature.properties?.['@id'] || `area-${(feature.properties?.name || String(index)).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+}
+export function isKantinMart(properties = {}) {
+  const name = `${properties.name || ''} ${properties.nama_lain || ''}`;
+  return ['restaurant', 'food_court', 'cafe'].includes(properties.amenity) || /\b(kantin|mart|t-mart|kafe|lakeside|wdp)\b/i.test(name);
 }
 export function areaGroup(properties = {}) {
   if (/^gate\s*\d+/i.test(properties.name || '') || properties.barrier === 'gate') return 'gate';
   if (properties.amenity === 'parking') return 'parkir';
   if (properties.building === 'dormitory') return 'asrama';
   if (properties.amenity === 'place_of_worship' || properties.building === 'mosque') return 'ibadah';
+  if (isKantinMart(properties)) return 'kantin';
   return 'gedung';
 }
 function hasValue(value) {
@@ -46,18 +51,27 @@ export function buildAreas(geojson, buildings = []) {
       if(['yes','no'].includes(saved.availability))return saved;
       return {...saved, availability:f.availability==='no'?'no':saved.availability==='reported'||f.availability==='reported'?'reported':'unknown', location:f.location || saved.location};
     });
-    return [{...pilot, id:pilot?.id || key, featureKey:key, group, geometry:feature.geometry,
+    const groups = new Set([group]);
+    if (pilot?.id === 'tult' || key === 'way/1257717375') {
+      groups.add('ibadah');
+      groups.add('kantin');
+    }
+    if (pilot?.id === 'gku' || ['relation/20128195', 'way/359378605'].includes(key) || isKantinMart(p)) {
+      groups.add('kantin');
+    }
+    const defaultPhoto = group === 'asrama' ? '/assets/buildings/asrama.webp' : /cacuk sudarijanto/i.test(p.name || '') ? '/assets/buildings/cacuk.webp' : '';
+    return [{...pilot, id:pilot?.id || key, featureKey:key, group, groups:[...groups], geometry:feature.geometry,
       name:pilot?.name || p.name || (group==='parkir'?'Area parkir':'Gedung tanpa nama'),
       fullName: [pilot?.fullName || p.name || key, p.nama_lain].filter(Boolean).join(' · '),
       category:pilot?.category || AREA_GROUPS.find(([id])=>id===group)?.[1],
       buildingCode:pilot?.buildingCode || p.building_code || '',
       aliases: `${p.name || ''} ${p.nama_lain || ''} ${p.building_code || ''} ${group === 'ibadah' ? 'MSU' : ''}`.trim(),
-      position:pilot?.position || position, photo:pilot?.photo || '',
+      position:pilot?.position || position, photo:pilot?.photo || p.photo || defaultPhoto,
       history: pilot?.history || p.history || '',
       locationNote:pilot?.locationNote || '', verifiedAt:pilot?.verifiedAt || null, facilities, pilot:!!pilot,
     }];
   });
-  for(const building of buildings)if(!matched.has(building.id))areas.push({...building,group:'gedung',featureKey:building.geoId || building.id,pilot:true});
+  for(const building of buildings)if(!matched.has(building.id))areas.push({...building,group:'gedung',groups:['gedung'],featureKey:building.geoId || building.id,pilot:true});
   return areas;
 }
 export function matchesFacilities(area, filters) {
@@ -69,7 +83,7 @@ export function filterAreas(areas, {group='all', query='', filters=[]}={}) {
   const roomCode=/^([A-Za-z]+\d*)[.]/.exec(query.trim());
   const buildingPrefix=roomCode ? roomCode[1].toLocaleLowerCase('id') : null;
   return areas.filter(area=>{
-    if(group!=='all'&&area.group!==group)return false;
+    if(group!=='all'&&!(area.groups?area.groups.includes(group):area.group===group))return false;
     if(!matchesFacilities(area,filters))return false;
     if(!q)return true;
     if(buildingPrefix){
