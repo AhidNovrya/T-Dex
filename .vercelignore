@@ -1,0 +1,11 @@
+# Abaikan file backend, build worker, tes, dan database agar tidak diproses sebagai Serverless Function oleh Vercel
+server/
+scripts/
+tests/
+drizzle/
+.openai/
+.data/
+dist/
+.env
+.env.*
+

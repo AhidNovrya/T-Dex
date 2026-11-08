@@ -1,6 +1,7 @@
 {
-  "buildCommand": null,
+  "buildCommand": "",
   "outputDirectory": ".",
+  "cleanUrls": true,
   "headers": [
     {
       "source": "/peta_telkom.geojson",
@@ -13,4 +14,3 @@
     }
   ]
 }
-

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=24"
+    "node": ">=20"
   },
   "scripts": {
     "local": "npm run setup && npm run dev",
