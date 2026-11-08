@@ -29,8 +29,8 @@ function applyCampus(data){Object.assign(state,{buildings:data.buildings,routes:
 async function loadCampus(){
  const data=await loadPublicCampus(state.geojson,{backendAvailable:backendDeclared,baseURL:document.baseURI});
  state.backendAvailable=data.backendAvailable;applyCampus(data);
- const notice=$('runtime-notice');notice.hidden=data.backendAvailable;
- if(!data.backendAvailable)notice.innerHTML=`${icon('info')}<p>${backendDeclared?'Data petugas belum dapat dimuat. Peta menampilkan inventaris GeoJSON.':'Mode peta lokal: filter, pencarian, dan informasi area tetap tersedia.'} Untuk laporan dan akun petugas, jalankan <code>npm run local</code> lalu buka URL yang ditampilkan terminal.</p>`;
+ const notice=$('runtime-notice');
+ if(notice)notice.hidden=true;
  return data;
 }
 function localServerHelp(){page(`<section class="success-card"><span class="empty-icon">${icon('info')}</span><h1 tabindex="-1">Jalankan server aplikasi</h1><p>Fitur laporan dan akun petugas membutuhkan server lokal beserta database.</p><p>Dari folder proyek, jalankan:</p><pre class="local-command">npm run local</pre><p>Buka URL dari terminal, biasanya <strong>http://localhost:3000</strong>. Peta dan informasi area dapat digunakan pada halaman ini.</p>${btn('Kembali ke peta','local-help-back','primary','back')}</section>`,'success-page');$('local-help-back').onclick=showMap;}
