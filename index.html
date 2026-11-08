@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Peta Kampus Telkom University</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    #map { height: 100%; width: 100%; }
+
+    /* Panel kontrol */
+    #panel {
+      position: absolute; top: 10px; left: 10px; z-index: 1000;
+      width: 320px; max-width: calc(100% - 20px); max-height: calc(100% - 20px);
+      overflow: auto; background: #fff; color: #111827;
+      border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,.3);
+      font-size: 14px; line-height: 1.4;
+    }
+    #panel summary { cursor: pointer; padding: 12px 14px; font-weight: 700; font-size: 15px; }
+    #panel .isi { padding: 0 14px 14px; }
+    #panel h2 { font-size: 13px; margin: 14px 0 6px; text-transform: uppercase; letter-spacing: .04em; color: #374151; }
+    #panel input[type="search"] {
+      width: 100%; box-sizing: border-box; padding: 8px 10px; font-size: 14px;
+      border: 1px solid #9ca3af; border-radius: 6px;
+    }
+    #hasil { list-style: none; margin: 6px 0 0; padding: 0; }
+    #hasil button {
+      width: 100%; text-align: left; padding: 8px 10px; border: 0; background: #f3f4f6;
+      border-radius: 6px; margin-bottom: 4px; cursor: pointer; font-size: 14px;
+    }
+    #hasil button:hover, #hasil button:focus { background: #dbeafe; }
+    fieldset { border: 0; padding: 0; margin: 0; }
+    fieldset legend { padding: 0; font-size: 13px; color: #374151; margin-bottom: 4px; }
+    .cek { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; }
+    .cek input { width: 18px; height: 18px; }
+    #reset { margin-top: 6px; padding: 6px 10px; border: 1px solid #9ca3af; background: #fff; border-radius: 6px; cursor: pointer; font-size: 13px; }
+    #jumlah { margin: 8px 0 0; font-size: 13px; color: #374151; }
+    #notice { margin: 10px 0 0; padding: 8px 10px; background: #fef3c7; border-radius: 6px; font-size: 13px; display: none; }
+    .legenda { list-style: none; margin: 0; padding: 0; }
+    .legenda li { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+    .kotak { display: inline-block; width: 20px; height: 14px; border-radius: 3px; flex: none; }
+
+    /* Ikon status: warna + simbol, supaya tidak bergantung pada warna saja */
+    .badge {
+      display: flex; align-items: center; justify-content: center;
+      width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff;
+      color: #fff; font: 700 13px/1 system-ui, sans-serif;
+      box-shadow: 0 1px 4px rgba(0,0,0,.45); box-sizing: border-box; flex: none;
+    }
+    .b-yes { background: #15803d; }
+    .b-limited { background: #b45309; }
+    .b-no { background: #b91c1c; }
+    .b-none { background: #2563eb; }
+
+    .popup-judul { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .popup-jenis { color: #4b5563; margin-bottom: 4px; }
+    .popup-status { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font-weight: 600; }
+    .popup-baris { margin: 3px 0; }
+    .popup-belum { margin-top: 6px; padding: 6px 8px; background: #f3f4f6; border-radius: 6px; color: #374151; }
+  </style>
+</head>
+<body>
+  <div id="map" role="application" aria-label="Peta kampus Telkom University"></div>
+
+  <details id="panel" open>
+    <summary>Peta Kampus &amp; Aksesibilitas</summary>
+    <div class="isi">
+      <h2>Cari gedung</h2>
+      <input type="search" id="cari" placeholder="Contoh: Landmark, KU3, Cacuk, Asrama" aria-label="Cari gedung" autocomplete="off">
+      <ul id="hasil" aria-live="polite"></ul>
+
+      <h2>Filter fasilitas</h2>
+      <fieldset>
+        <legend>Tampilkan hanya gedung yang punya:</legend>
+        <label class="cek"><input type="checkbox" data-fas="ramp"> Ramp</label>
+        <label class="cek"><input type="checkbox" data-fas="lift"> Lift</label>
+        <label class="cek"><input type="checkbox" data-fas="pemandu"> Jalur pemandu</label>
+        <label class="cek"><input type="checkbox" data-fas="toilet"> Toilet disabilitas</label>
+      </fieldset>
+      <button type="button" id="reset">Hapus filter</button>
+      <p id="jumlah" aria-live="polite"></p>
+
+      <h2>Legenda</h2>
+      <ul class="legenda">
+        <li><span class="badge b-yes" aria-hidden="true">✔</span> Akses penuh</li>
+        <li><span class="badge b-limited" aria-hidden="true">!</span> Akses terbatas / baru sebagian disurvei</li>
+        <li><span class="badge b-no" aria-hidden="true">✖</span> Tidak aksesibel</li>
+        <li><span class="badge b-none" aria-hidden="true">♿</span> Fasilitas disabilitas (status belum diisi)</li>
+        <li><span class="kotak" style="background:#cbd5e1;border:1px solid #64748b"></span> Gedung (belum disurvei aksesibilitasnya)</li>
+        <li><span class="kotak" style="background:#bfdbfe;border:1px solid #2563eb"></span> Area parkir</li>
+      </ul>
+
+      <p id="notice" role="status"></p>
+    </div>
+  </details>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    /* ============ PENGATURAN ============ */
+    const PUSAT = [-6.9735, 107.6305];           // titik tengah awal (Telkom University)
+    const FILE_DATA = 'peta_telkom.geojson';     // satu file: semua gedung + data aksesibilitas
+
+    /* ============ PETA DASAR ============ */
+    const map = L.map('map').setView(PUSAT, 17);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    /* ============ KONSTANTA ============ */
+    const WARNA  = { yes: '#15803d', limited: '#b45309', no: '#b91c1c' };
+    const LABEL  = { yes: 'Akses penuh', limited: 'Akses terbatas', no: 'Tidak aksesibel' };
+    const SIMBOL = { yes: '✔', limited: '!', no: '✖', none: '♿' };
+    const NETRAL = '#2563eb';
+
+    // "has" = apakah gedung punya fasilitas ini, "detail" = teks di popup
+    const FASILITAS = [
+      { key: 'ramp',    label: 'Ramp',
+        has: p => p.ramp === 'yes' || !!p.ramp_lokasi,
+        detail: p => p.ramp_lokasi || 'Ada' },
+      { key: 'lift',    label: 'Lift',
+        has: p => !!p.lift_jumlah || p.highway === 'elevator',
+        detail: p => p.lift_jumlah || 'Ada' },
+      { key: 'pemandu', label: 'Jalur pemandu',
+        has: p => !!p.jalur_pemandu || p.tactile_paving === 'yes',
+        detail: p => p.jalur_pemandu || 'Ada' },
+      { key: 'toilet',  label: 'Toilet disabilitas',
+        has: p => !!p.toilet_disabilitas || p['toilets:wheelchair'] === 'yes',
+        detail: p => p.toilet_disabilitas || 'Ada' }
+    ];
+
+    // Jenis bangunan dalam bahasa Indonesia (dari tag OSM)
+    function jenisDari(p) {
+      const amenity = { restaurant: 'Kantin / restoran', food_court: 'Area makan', cafe: 'Kafe', clinic: 'Klinik', college: 'Fakultas', parking: 'Area parkir' };
+      const building = { dormitory: 'Asrama', university: 'Gedung kampus', school: 'Sekolah', commercial: 'Toko / usaha', house: 'Rumah' };
+      if (p.amenity in amenity) return amenity[p.amenity];
+      if (p.leisure === 'sports_centre') return 'Fasilitas olahraga';
+      if (p.building in building) return building[p.building];
+      return '';
+    }
+
+    /* ============ UTILITAS ============ */
+    const esc = s => String(s).replace(/[&<>"']/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    const statusDari = p => (p.wheelchair in LABEL ? p.wheelchair : 'none');
+
+    // Gedung dianggap "sudah disurvei" kalau punya salah satu properti aksesibilitas
+    const adalahAkses = p => !!(p.wheelchair || p.ramp || p.ramp_lokasi || p.lift_jumlah || p.jalur_pemandu || p.toilet_disabilitas);
+
+    function tampilkanNotice(teks) {
+      const el = document.getElementById('notice');
+      el.style.display = 'block';
+      el.innerHTML += (el.innerHTML ? '<br>' : '') + esc(teks);
+    }
+
+    function pusatLayer(layer) {
+      return layer.getBounds ? layer.getBounds().getCenter() : layer.getLatLng();
+    }
+
+    function buatIkon(st) {
+      return L.divIcon({
+        className: '',
+        html: `<div class="badge b-${st}">${SIMBOL[st]}</div>`,
+        iconSize: [24, 24], iconAnchor: [12, 12], popupAnchor: [0, -12]
+      });
+    }
+
+    /* ============ ISI POPUP ============ */
+    function popupAkses(p) {
+      const st = statusDari(p);
+      const jenis = jenisDari(p);
+      const baris = FASILITAS
+        .filter(f => f.has(p))
+        .map(f => `<div class="popup-baris"><b>${f.label}:</b> ${esc(f.detail(p))}</div>`)
+        .join('');
+      const catatan = p.catatan ? `<div class="popup-baris"><b>Catatan:</b> ${esc(p.catatan)}</div>` : '';
+      return `
+        <div class="popup-judul">${esc(p.name || 'Tanpa nama')}</div>
+        ${jenis ? `<div class="popup-jenis">${esc(jenis)}</div>` : ''}
+        <div class="popup-status"><span class="badge b-${st}" aria-hidden="true">${SIMBOL[st]}</span>${LABEL[st] || 'Fasilitas disabilitas'}</div>
+        ${baris || '<div class="popup-baris">Belum ada detail fasilitas.</div>'}
+        ${catatan}`;
+    }
+
+    function popupBiasa(p) {
+      if (p.amenity === 'parking') {
+        return `<div class="popup-judul">Area parkir</div>
+                <div class="popup-belum">Data parkir disabilitas belum disurvei.</div>`;
+      }
+      if (p.highway === 'crossing') {
+        const pemandu = p.tactile_paving === 'yes' ? 'Ada jalur pemandu'
+                      : p.tactile_paving === 'no' ? 'Tidak ada jalur pemandu'
+                      : 'Jalur pemandu belum tercatat';
+        return `<div class="popup-judul">Penyeberangan jalan</div>
+                <div class="popup-baris">${pemandu}</div>`;
+      }
+      const jenis = jenisDari(p);
+      const lantai = p['building:levels'] ? `<div class="popup-baris"><b>Jumlah lantai:</b> ${esc(p['building:levels'])}</div>` : '';
+      const jam = p.opening_hours ? `<div class="popup-baris"><b>Jam buka:</b> ${esc(p.opening_hours)}</div>` : '';
+      return `
+        <div class="popup-judul">${esc(p.name || 'Tanpa nama')}</div>
+        ${jenis ? `<div class="popup-jenis">${esc(jenis)}</div>` : ''}
+        ${lantai}${jam}
+        <div class="popup-belum">Data aksesibilitas gedung ini belum disurvei.</div>`;
+    }
+
+    /* ============ LAYER ============ */
+    const grupAkses = L.layerGroup().addTo(map);   // gedung yang sudah disurvei (bisa difilter)
+    const layerKampus = L.layerGroup().addTo(map); // semua gedung lain
+    const itemAkses = [];                          // { p, parts: [layer, badge], center, html }
+    const itemCari  = [];                          // { nama, center, html, prioritas }
+    const semuaPusat = [];                         // untuk fitBounds
+
+    L.control.layers(null, {
+      'Gedung yang sudah disurvei': grupAkses,
+      'Gedung & area lain': layerKampus
+    }, { collapsed: false, position: 'topright' }).addTo(map);
+
+    function gayaBiasa(p) {
+      if (p.amenity === 'parking') return { color: '#2563eb', weight: 1, fillColor: '#bfdbfe', fillOpacity: 0.45 };
+      return { color: '#64748b', weight: 1, fillColor: '#cbd5e1', fillOpacity: 0.55 };
+    }
+
+    function proses(data) {
+      // Perbaikan otomatis jika file lama masih memakai key salah ketik "list_jumlah"
+      data.features.forEach(f => {
+        const p = f.properties || {};
+        if (p.list_jumlah && !p.lift_jumlah) p.lift_jumlah = p.list_jumlah;
+      });
+
+      const akses = { type: 'FeatureCollection', features: data.features.filter(f => adalahAkses(f.properties || {})) };
+      const biasa = { type: 'FeatureCollection', features: data.features.filter(f => !adalahAkses(f.properties || {})) };
+
+      /* ---- Gedung & area lain ---- */
+      L.geoJSON(biasa, {
+        style: f => gayaBiasa(f.properties || {}),
+        pointToLayer: (f, ll) => L.circleMarker(ll, { radius: 5, color: '#475569', weight: 1, fillColor: '#94a3b8', fillOpacity: 0.9 }),
+        onEachFeature: (f, layer) => {
+          const p = f.properties || {};
+          const html = popupBiasa(p);
+          layer.bindPopup(html);
+          layerKampus.addLayer(layer);
+          const center = pusatLayer(layer);
+          semuaPusat.push(center);
+          if (p.name) itemCari.push({ nama: p.name, center, html, prioritas: 1 });
+        }
+      });
+
+      /* ---- Gedung yang sudah disurvei ---- */
+      L.geoJSON(akses, {
+        style: f => ({ color: WARNA[(f.properties || {}).wheelchair] || NETRAL, weight: 3, fillOpacity: 0.35 }),
+        pointToLayer: (f, ll) => L.marker(ll, { icon: buatIkon(statusDari(f.properties || {})), keyboard: true }),
+        onEachFeature: (f, layer) => {
+          const p = f.properties || {};
+          const html = popupAkses(p);
+          layer.bindPopup(html);
+          const parts = [layer];
+          const center = pusatLayer(layer);
+          semuaPusat.push(center);
+
+          // Polygon dapat ikon simbol di tengahnya (warna + simbol)
+          if (f.geometry && f.geometry.type !== 'Point') {
+            const badge = L.marker(center, { icon: buatIkon(statusDari(p)), keyboard: true, title: p.name || '' });
+            badge.bindPopup(html);
+            parts.push(badge);
+          }
+          itemAkses.push({ p, parts, center, html });
+          if (p.name) itemCari.push({ nama: p.name, center, html, prioritas: 0 });
+        }
+      });
+
+      terapkanFilter();
+      if (semuaPusat.length) map.fitBounds(L.latLngBounds(semuaPusat), { maxZoom: 17, padding: [30, 30] });
+    }
+
+    fetch(FILE_DATA)
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(proses)
+      .catch(() => tampilkanNotice(`${FILE_DATA} tidak ditemukan atau gagal dibaca. Pastikan file ada satu folder dengan index.html dan halaman dibuka lewat server lokal (bukan klik dua kali).`));
+
+    /* ============ FILTER ============ */
+    const kotakFilter = [...document.querySelectorAll('input[data-fas]')];
+
+    function terapkanFilter() {
+      const aktif = kotakFilter.filter(k => k.checked).map(k => k.dataset.fas);
+      const cocok = item => aktif.every(key => FASILITAS.find(f => f.key === key).has(item.p));
+
+      grupAkses.clearLayers();
+      let n = 0;
+      itemAkses.forEach(item => {
+        if (cocok(item)) {
+          item.parts.forEach(part => grupAkses.addLayer(part));
+          n++;
+        }
+      });
+      document.getElementById('jumlah').textContent =
+        itemAkses.length ? `${n} dari ${itemAkses.length} gedung yang sudah disurvei ditampilkan.` : '';
+    }
+
+    kotakFilter.forEach(k => k.addEventListener('change', terapkanFilter));
+    document.getElementById('reset').addEventListener('click', () => {
+      kotakFilter.forEach(k => (k.checked = false));
+      terapkanFilter();
+    });
+
+    /* ============ PENCARIAN ============ */
+    const inputCari = document.getElementById('cari');
+    const daftarHasil = document.getElementById('hasil');
+
+    inputCari.addEventListener('input', () => {
+      const q = inputCari.value.trim().toLowerCase();
+      daftarHasil.innerHTML = '';
+      if (q.length < 2) return;
+
+      const sudah = new Set();
+      const cocok = itemCari
+        .filter(i => i.nama.toLowerCase().includes(q))
+        .sort((a, b) => a.prioritas - b.prioritas)
+        .filter(i => {                          // buang duplikat nama, data aksesibilitas diutamakan
+          const k = i.nama.toLowerCase();
+          if (sudah.has(k)) return false;
+          sudah.add(k);
+          return true;
+        })
+        .slice(0, 6);
+
+      if (!cocok.length) {
+        daftarHasil.innerHTML = '<li style="font-size:13px;color:#6b7280;">Tidak ditemukan.</li>';
+        return;
+      }
+      cocok.forEach(i => {
+        const li = document.createElement('li');
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = i.nama;
+        btn.addEventListener('click', () => {
+          map.flyTo(i.center, 18);
+          L.popup().setLatLng(i.center).setContent(i.html).openOn(map);
+        });
+        li.appendChild(btn);
+        daftarHasil.appendChild(li);
+      });
+    });
+
+    /* ============ TAMPILAN ============ */
+    const panel = document.getElementById('panel');
+    L.DomEvent.disableClickPropagation(panel);
+    L.DomEvent.disableScrollPropagation(panel);
+    if (window.innerWidth < 640) panel.open = false;   // di HP, panel mulai tertutup
+  </script>
+</body>
+</html>
