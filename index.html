@@ -6,17 +6,18 @@
 <title>T-Dex — Peta Aksesibilitas Kampus Telkom University</title>
 <meta name="description" content="Temukan informasi fasilitas aksesibilitas gedung Telkom University, baca panduan jalur survei, dan laporkan hambatan kampus.">
 <meta property="og:title" content="T-Dex — Aksesibilitas Kampus"><meta property="og:description" content="Informasi akses kampus, dalam satu peta."><meta property="og:type" content="website"><meta property="og:url" content="https://tdex-kampus-inklusif.mobileivy4.chatgpt.site"><link rel="canonical" href="https://tdex-kampus-inklusif.mobileivy4.chatgpt.site">
-<meta name="theme-color" content="#17365d"><link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/assets/vendor/leaflet.css"><link rel="stylesheet" href="/styles.css">
-<script defer src="/assets/vendor/leaflet.js"></script><script type="module" src="/app.js"></script>
+<meta name="theme-color" content="#17365d"><link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="./assets/vendor/leaflet.css"><link rel="stylesheet" href="./styles.css">
+<script defer src="./assets/vendor/leaflet.js"></script><script type="module" src="./app.js"></script>
 </head>
 <body>
 <a class="skip-link" href="#main">Lewati ke konten utama</a>
 <header class="header">
- <a href="/" class="brand" aria-label="T-Dex, beranda peta"><span class="wordmark">T-Dex<span class="brand-dot">.</span></span><span class="brand-description">Aksesibilitas<br>Kampus</span></a>
+ <a href="./" class="brand" aria-label="T-Dex, beranda peta"><span class="wordmark">T-Dex<span class="brand-dot">.</span></span><span class="brand-description">Aksesibilitas<br>Kampus</span></a>
  <div class="search-wrap"><label class="sr-only" for="search">Cari gedung atau area kampus</label><span data-icon="search"></span><input id="search" type="search" placeholder="Cari gedung atau area kampus..." autocomplete="off" aria-controls="search-results"><kbd aria-hidden="true">/</kbd><div id="search-results" class="search-results" hidden aria-live="polite"></div></div>
  <nav aria-label="Navigasi utama"><button class="icon-button help-button" id="help" title="Panduan penggunaan" aria-label="Panduan penggunaan"><span data-icon="help"></span></button><button class="report-header" id="report-header" aria-label="Laporkan hambatan"><span data-icon="flag"></span><span>Laporkan hambatan</span></button><span class="nav-divider"></span><button class="account-button" id="account" title="Masuk Petugas" aria-label="Masuk Petugas"><span data-icon="user"></span></button></nav>
 </header>
+<aside id="runtime-notice" class="runtime-notice" role="status" hidden></aside>
 <main id="main" tabindex="-1">
  <div id="map-view" class="map-view">
   <div id="map" role="region" aria-label="Peta kampus Telkom University. Gunakan daftar gedung untuk akses dengan papan ketik."></div>
@@ -39,4 +40,11 @@
 <dialog id="help-dialog"><div class="dialog-heading"><span class="eyebrow">Panduan T-Dex</span><button class="icon-button" id="close-help" aria-label="Tutup panduan"><span data-icon="close"></span></button></div><h2>Kenali akses sebelum berangkat.</h2><p>Pilih pin atau cari nama gedung untuk melihat fasilitas. Gunakan Daftar area untuk menelusuri lokasi tanpa berinteraksi dengan peta.</p><ol><li><strong>Periksa informasi gedung.</strong> Bedakan fasilitas yang dilaporkan, sudah diperiksa, dan belum diketahui.</li><li><strong>Baca petunjuk arah.</strong> Panduan hanya tersedia untuk pasangan asal–tujuan yang sudah disurvei. Jalur balik memerlukan survei tersendiri.</li><li><strong>Laporkan hambatan.</strong> Sertakan lokasi, deskripsi, dan satu foto. Bukti foto hanya dapat dilihat petugas.</li></ol><div class="notice"><span data-icon="info"></span><p>Pilot belum mencakup GPS langsung, navigasi dalam gedung, atau perhitungan rute otomatis.</p></div><button class="button primary" id="understood">Kembali ke peta</button></dialog>
 <div id="toast" class="toast" role="status" hidden></div>
 <noscript><div class="noscript">Aktifkan JavaScript untuk membuka peta interaktif. Gedung pilot: TULT, GKU, Asrama, dan Graha Cacuk. Data akses dan jalur masih memerlukan verifikasi petugas.</div></noscript>
+<script>
+if(location.protocol==='file:'){
+ var notice=document.getElementById('runtime-notice');notice.hidden=false;
+ notice.textContent='Halaman ini perlu server lokal. Jalankan npm run local dari folder proyek, lalu buka http://localhost:3000. Jangan membuka index.html langsung.';
+ document.getElementById('campus-count').textContent='Server lokal belum dijalankan';
+}
+</script>
 </body></html>

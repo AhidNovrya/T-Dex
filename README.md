@@ -22,6 +22,10 @@ npm run setup:reset
 
 Mulai ulang server setelah reset. Untuk menentukan nama pengguna saat membuat atau mereset akun, tambahkan `-- nama.pengguna` pada perintah setup. Jika port 3000 sudah terpakai, ubah `PORT=3001` pada `.env`, lalu buka http://localhost:3001. Buka aplikasi melalui URL server, bukan dengan klik dua kali `index.html`.
 
+Peta, filter fasilitas, pencarian, daftar area, dan panel informasi juga dapat dibuka melalui VS Code Live Server atau server statis, termasuk saat folder proyek berada dalam subfolder URL. Mode ini menampilkan inventaris GeoJSON dan memberi petunjuk menjalankan server aplikasi. Pengiriman laporan, login, dan pengelolaan petugas membutuhkan `npm run local` dan database; mode statis tidak menyimpan laporan atau menampilkan keberhasilan palsu.
+
+Jika memperbarui clone lama, jalankan `git pull`, hentikan server lama dengan Ctrl+C, kemudian jalankan lagi `npm run local` dan muat ulang browser. Jika sebelumnya memakai Live Server, pindah ke URL yang ditampilkan oleh perintah `npm run local` untuk mengakses fitur petugas.
+
 Database SQLite dan bukti foto lokal tersimpan dalam `.data/`, di luar aset publik. Cadangkan direktori ini untuk mempertahankan laporan. Akun lokal dan akun deployment memiliki konfigurasi terpisah.
 
 ## Fitur
@@ -50,8 +54,10 @@ Tidak ada tanggal verifikasi, sejarah gedung, klaim WCAG tersertifikasi, kecepat
 
 - `index.html`, `styles.css`, `app.js`: antarmuka HTML/CSS/JavaScript tanpa framework.
 - `campus-data.js`: indeks area GeoJSON, pengelompokan, dan penggabungan fasilitas dengan data petugas tanpa mereset database.
+- `public-campus.js`: inventaris awal bersama dan pemuatan peta saat API tidak tersedia.
 - `server/api.mjs`: API bersama untuk Node lokal dan Cloudflare Worker.
 - `server/local.mjs`: server lokal SQLite dan berkas foto privat.
+- `server/web-files.mjs`: pemetaan file publik lintas Windows/Linux dan deklarasi backend pada HTML.
 - `server/seed.mjs`: pemetaan inventaris pilot ke geometri asli.
 - `drizzle/`: migrasi skema D1/SQLite, tanpa seed fiktif.
 - `assets/`: foto dan denah WebP yang dipakai aplikasi; Leaflet, Inter, dan lisensinya dilayani lokal.

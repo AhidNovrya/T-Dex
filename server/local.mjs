@@ -4,6 +4,7 @@ import {readFile,writeFile,mkdir,unlink} from 'node:fs/promises';
 import {resolve,join,extname} from 'node:path';
 import {Readable} from 'node:stream';
 import {createAPI} from './api.mjs';
+import {resolvePublicFile,enableBackend} from './web-files.mjs';
 const root=resolve(import.meta.dirname,'..'),dataRoot=process.env.DATA_DIR||join(root,'.data');
 await mkdir(join(dataRoot,'photos'),{recursive:true});
 const sqlite=new DatabaseSync(join(dataRoot,'tdex.sqlite'));
@@ -21,10 +22,9 @@ const server=createServer(async(req,res)=>{
    const request=new Request(url,{method:req.method,headers,...(!['GET','HEAD'].includes(req.method)?{body:Buffer.concat(chunks)}:{})});
    response=await api(request,{DB,BUCKET,ADMIN_USERNAME:process.env.ADMIN_USERNAME,ADMIN_PASSWORD_HASH:process.env.ADMIN_PASSWORD_HASH});
   }else{
-   const path=decodeURIComponent(url.pathname),file=path==='/'?'index.html':path.slice(1);
-   if(!['index.html','app.js','campus-data.js','styles.css','peta_telkom.geojson'].includes(file)&&!/^assets\/[a-zA-Z0-9_./-]+$/.test(file))throw Error('Not found');
-   const absolute=resolve(root,file);if(!absolute.startsWith(root+'/')||file.includes('..'))throw Error('Not found');
-   response=new Response(await readFile(absolute),{headers:{'Content-Type':mime[extname(file)]||'application/octet-stream'}});
+   const absolute=resolvePublicFile(root,url.pathname),extension=extname(absolute);
+   const bytes=await readFile(absolute),body=extension==='.html'?enableBackend(bytes.toString('utf8')):bytes;
+   response=new Response(body,{headers:{'Content-Type':mime[extension]||'application/octet-stream','Cache-Control':'no-cache'}});
   }
   response.headers.set('X-Content-Type-Options','nosniff');response.headers.set('Referrer-Policy','strict-origin-when-cross-origin');
   res.writeHead(response.status,Object.fromEntries(response.headers));if(response.body)Readable.fromWeb(response.body).pipe(res);else res.end();
