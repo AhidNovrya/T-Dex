@@ -1,0 +1,18 @@
+{
+  "name": "tdex-campus-accessibility",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "local": "npm run setup && npm run dev",
+    "dev": "node --env-file-if-exists=.env server/local.mjs",
+    "start": "node --env-file-if-exists=.env server/local.mjs",
+    "build": "node scripts/build.mjs",
+    "test": "node --test --test-isolation=none tests/*.test.mjs",
+    "setup": "node scripts/setup-admin.mjs",
+    "setup:reset": "node scripts/setup-admin.mjs --reset"
+  }
+}

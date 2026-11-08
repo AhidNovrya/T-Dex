@@ -1,0 +1,56 @@
+# Dependencies and generated output
+node_modules/
+/dist/
+/output/
+*.log
+*.tar.gz
+*.zip
+
+# Local credentials and application data
+.env
+.env.*
+!.env.example
+/.data/
+/uploads/
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.pem
+*.key
+*.p12
+*.pfx
+/.aws/
+/.ssh/
+/.gnupg/
+/.netrc
+
+# Personal hosting identity; keep only the reusable build template
+/.openai/*
+!/.openai/hosting.example.json
+
+# Agent, editor, and browser session state
+/.agents/
+/.codex/
+/.taste-skill/
+/.playwright/
+/.playwright-cli/
+/.vscode/
+/.idea/
+
+# Local references and internal QA notes
+/design/
+/PRD_T-Dex.pdf
+/docs/design-plan.md
+/docs/verification.md
+
+# Original PNGs are retained locally; the app uses optimized WebP files
+/assets/campus-map.png
+/assets/buildings/*.png
+
+# OS download metadata
+*:Zone.Identifier
+.DS_Store
+Thumbs.db
+Desktop.ini
